@@ -2241,6 +2241,7 @@ static void test_llps_ip_audit_writes_pxf_record_shape(void) {
     llps_ip_audit_event_t event;
     char path[128];
     char line[4096];
+    struct stat st;
     int n = 0;
 
     n = snprintf(path,
@@ -2279,6 +2280,10 @@ static void test_llps_ip_audit_writes_pxf_record_shape(void) {
     llps_ip_audit_shutdown();
 
     test_read_text_file(path, line, sizeof(line));
+    LLPS_TEST_ASSERT(stat(path, &st) == 0);
+    LLPS_TEST_ASSERT((st.st_mode & S_IRUSR) != 0u);
+    LLPS_TEST_ASSERT((st.st_mode & S_IRGRP) != 0u);
+    LLPS_TEST_ASSERT((st.st_mode & S_IROTH) != 0u);
     LLPS_TEST_ASSERT(strncmp(line, "pxf/1\n", 6u) == 0);
     LLPS_TEST_ASSERT(strstr(line,
                             "@table audit seq:tok request_no:tok "

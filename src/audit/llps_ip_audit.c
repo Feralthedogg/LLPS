@@ -2097,13 +2097,17 @@ static bool llps_ip_audit_open_document_fd(
 #ifdef O_CLOEXEC
     fd = open(cfg->ip_audit_path,
               O_RDWR | O_APPEND | O_CREAT | O_CLOEXEC,
-              S_IRUSR | S_IWUSR);
+              S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 #else
     fd = open(cfg->ip_audit_path,
               O_RDWR | O_APPEND | O_CREAT,
-              S_IRUSR | S_IWUSR);
+              S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 #endif
     if (!llps_fd_is_valid(fd)) {
+        return false;
+    }
+    if (fchmod(fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) != 0) {
+        (void)close(fd);
         return false;
     }
     if (!llps_ip_audit_prepare_pxf_document(fd,
