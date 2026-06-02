@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LLAM_VERSION: "2.0.0"
+  LLAM_BASE_URL: "https://github.com/Feralthedogg/LLAM/releases/download/v2.0.0"
+
+jobs:
+  local-tests:
+    name: Local build, tests, and audits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cmake \
+            curl \
+            liburing-dev \
+            pkg-config \
+            python3
+
+      - name: Install LLAM
+        env:
+          LLAM_PREFIX: ${{ github.workspace }}/.llam
+        run: |
+          curl -fsSL "${LLAM_BASE_URL}/install.sh" | sh -s -- \
+            --version "${LLAM_VERSION}" \
+            --base-url "${LLAM_BASE_URL}" \
+            --prefix "${LLAM_PREFIX}"
+
+      - name: Configure
+        env:
+          LLAM_PREFIX: ${{ github.workspace }}/.llam
+        run: |
+          cmake -S . -B build-test \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_PREFIX_PATH="${LLAM_PREFIX}"
+
+      - name: Build
+        run: cmake --build build-test --parallel 2
+
+      - name: Run CTest
+        run: ctest --test-dir build-test --output-on-failure
+
+      - name: Run audits
+        run: |
+          python3 tools/run_power_of_ten_audit.py
+          python3 tools/run_llps_completion_audit.py
+
+  docker-smoke:
+    name: Dockerfile smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: local-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Docker version
+        run: docker version
+
+      - name: Run production-like Docker smoke test
+        run: |
+          python3 tools/run_docker_prod_check.py \
+            --timeout 180 \
+            --chat-timeout 10 \
+            --log-tail 120
+
+      - name: Run protocol and synthetic readiness Docker smoke test
+        run: |
+          python3 tools/run_docker_prod_check.py \
+            --protocol-gate \
+            --synthetic-readiness \
+            --audit-mac \
+            --timeout 180 \
+            --chat-timeout 10 \
+            --log-tail 120
