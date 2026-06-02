@@ -145,6 +145,11 @@ def docker_build_target(target: str, image: str, timeout: float) -> None:
     )
 
 
+def prepare_container_writable_dir(path: pathlib.Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    path.chmod(0o777)
+
+
 def stage_secret_keys(
     args: argparse.Namespace,
 ) -> tuple[tempfile.TemporaryDirectory[str] | None, pathlib.Path | None, pathlib.Path | None]:
@@ -264,7 +269,7 @@ def write_synthetic_readiness_config(
     audit_mac_enabled: bool,
     evidence_mac_enabled: bool,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    prepare_container_writable_dir(path.parent)
     path.write_text(
         "\n".join(
             [
@@ -1368,7 +1373,7 @@ def main(argv: list[str]) -> int:
     staged_audit_key: pathlib.Path | None = None
     staged_evidence_key: pathlib.Path | None = None
     audit_log = args.audit_log if args.audit_log.is_absolute() else ROOT / args.audit_log
-    audit_log.parent.mkdir(parents=True, exist_ok=True)
+    prepare_container_writable_dir(audit_log.parent)
 
     try:
         staged_secrets, staged_audit_key, staged_evidence_key = stage_secret_keys(args)

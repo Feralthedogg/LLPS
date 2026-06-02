@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import types
+import tempfile
 import sys
 
 
@@ -69,6 +70,11 @@ def main() -> int:
         assert evidence_key.stat().st_mode & 0o777 == 0o444
     finally:
         staged_dir.cleanup()
+
+    with tempfile.TemporaryDirectory(prefix="llps-log-mount-test-") as tmp:
+        writable_dir = pathlib.Path(tmp) / "logs"
+        prod.prepare_container_writable_dir(writable_dir)
+        assert writable_dir.stat().st_mode & 0o777 == 0o777
 
     print("test_run_docker_prod_check_protocol passed.")
     return 0
