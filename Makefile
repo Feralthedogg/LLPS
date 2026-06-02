@@ -6,7 +6,7 @@ CTEST ?= ctest
 DOCKER ?= docker
 PYTHON ?= python3
 
-.PHONY: all configure build test audit docker-build docker-bench clean distclean
+.PHONY: all configure build test audit docker-build docker-smoke-one docker-run-one docker-bench clean distclean
 
 all: build
 
@@ -26,6 +26,15 @@ audit:
 
 docker-build:
 	$(DOCKER) build -t llps:local .
+
+docker-smoke-one:
+	$(DOCKER) build --target all-in-one-smoke -t llps:all-in-one-smoke .
+	$(DOCKER) run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=1m,mode=1777 llps:all-in-one-smoke
+
+docker-run-one:
+	$(DOCKER) build --target all-in-one-run -t llps:all-in-one-run .
+	mkdir -p logs
+	$(DOCKER) run --rm --name llps-one -p 25565:25565 --read-only --tmpfs /tmp:rw,noexec,nosuid,size=1m,mode=1777 -v "$$PWD/logs:/var/log/llps:rw" -e LLPS_IP_AUDIT_PATH=/var/log/llps/llps-ip-audit.pxf llps:all-in-one-run
 
 docker-bench:
 	$(PYTHON) tools/run_docker_bench.py --clients 100 --duration 5 --quiet-llps-logs

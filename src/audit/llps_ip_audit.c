@@ -2366,7 +2366,7 @@ static void llps_ip_audit_record_prepare_sequence(
 
 static void llps_ip_audit_record_build_mac(
     llps_ip_audit_record_context_t * const ctx) {
-    int mac_written = 0;
+    int mac_written;
 
     if ((ctx == NULL) || !ctx->ok || !g_ip_audit_mac_enabled) {
         return;
@@ -2560,7 +2560,7 @@ static void llps_ip_audit_evidence_prepare_sequence(
 
 static void llps_ip_audit_evidence_build_mac(
     llps_ip_audit_evidence_record_context_t * const ctx) {
-    int mac_written = 0;
+    int mac_written;
 
     if ((ctx == NULL) || !ctx->ok || !g_ip_audit_mac_enabled) {
         return;

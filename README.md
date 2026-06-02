@@ -82,6 +82,19 @@ Run the Dockerfile-only smoke check:
 python3 tools/run_docker_prod_check.py
 ```
 
+Run a single-container smoke check with the dummy server, LLPS, and client
+inside one container:
+
+```sh
+make docker-smoke-one
+```
+
+Run one long-lived container with the dummy server and LLPS inside it:
+
+```sh
+make docker-run-one
+```
+
 ## Test
 
 ```sh

@@ -2527,7 +2527,7 @@ llps_yml_status_t llps_yml_load_config_for_attestation_ex(
 }
 
 const char *llps_yml_status_string(const llps_yml_status_t st) {
-    const char *msg = "unknown";
+    const char *msg = NULL;
 
     switch (st) {
     case LLPS_YML_OK:

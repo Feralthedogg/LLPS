@@ -96,7 +96,7 @@ llps_status_t llps_make_platform_safety_evidence_raw_in_context(
     uint32_t current_tmr_memory_hardened = 0u;
     uint32_t current_tmr_startup_self_test_passed = 0u;
     uint32_t current_tmr_startup_self_test_coverage = 0u;
-    llps_edac_observation_t current_edac_observation;
+    llps_edac_observation_t current_edac_observation = { 0 };
     bool current_physical_domains_observed = false;
     uint32_t current_physical_domain_fingerprint = 0u;
     uint32_t current_physical_domain_topology_coverage = 0u;

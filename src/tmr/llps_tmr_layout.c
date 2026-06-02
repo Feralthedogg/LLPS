@@ -19,14 +19,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-uintptr_t llps_abs_addr_distance(const uintptr_t lhs, const uintptr_t rhs) {
-    if (lhs >= rhs) {
-        return lhs - rhs;
-    }
-
-    return rhs - lhs;
-}
-
 static uintptr_t llps_min_addr_distance(const uintptr_t lhs,
                                         const uintptr_t rhs) {
     return (lhs < rhs) ? lhs : rhs;

@@ -108,3 +108,36 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
     CMD bash -ec 'exec 3<>/dev/tcp/127.0.0.1/${LLPS_LISTEN_PORT:-25565}' || exit 1
 
 ENTRYPOINT ["/usr/local/bin/llps-docker-entrypoint"]
+
+FROM runtime AS all-in-one-smoke
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY tools/chat_server.py /opt/llps-tools/chat_server.py
+COPY tools/chat_client.py /opt/llps-tools/chat_client.py
+COPY docker/all-in-one-smoke.sh /usr/local/bin/llps-all-in-one-smoke
+
+RUN chmod +x /usr/local/bin/llps-all-in-one-smoke \
+    && chown -R llps:llps /opt/llps-tools
+
+USER llps:llps
+
+ENTRYPOINT ["/usr/local/bin/llps-all-in-one-smoke"]
+
+FROM all-in-one-smoke AS all-in-one-run
+
+USER root
+
+COPY docker/all-in-one-run.sh /usr/local/bin/llps-all-in-one-run
+
+RUN chmod +x /usr/local/bin/llps-all-in-one-run
+
+USER llps:llps
+
+EXPOSE 25565/tcp
+
+ENTRYPOINT ["/usr/local/bin/llps-all-in-one-run"]

@@ -4703,7 +4703,7 @@ void llps_run_server(void *arg) {
         listen_fd = *listen_fd_ref;
     }
 
-    if (!llps_fd_is_valid(listen_fd)) {
+    if (listen_fd < 0) {
         return;
     }
 
