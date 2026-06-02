@@ -193,6 +193,7 @@ def stage_secret_keys(
         staged_evidence_path.write_bytes(key_bytes)
         staged_evidence_path.chmod(0o444)
 
+    pathlib.Path(staged_dir.name).chmod(0o755)
     return staged_dir, staged_audit_path, staged_evidence_path
 
 

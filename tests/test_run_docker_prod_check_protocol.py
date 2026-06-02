@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import types
 import sys
 
 
@@ -49,6 +50,25 @@ def main() -> int:
 
     packet = prod.protocol_packet(body)
     assert packet.startswith(canonical)
+
+    args = types.SimpleNamespace(
+        audit_mac=True,
+        audit_key=None,
+        synthetic_readiness=True,
+        evidence_key=None,
+        keep_running=False,
+    )
+    staged_dir, audit_key, evidence_key = prod.stage_secret_keys(args)
+    assert staged_dir is not None
+    try:
+        secret_dir = pathlib.Path(staged_dir.name)
+        assert audit_key is not None
+        assert evidence_key is not None
+        assert secret_dir.stat().st_mode & 0o777 == 0o755
+        assert audit_key.stat().st_mode & 0o777 == 0o444
+        assert evidence_key.stat().st_mode & 0o777 == 0o444
+    finally:
+        staged_dir.cleanup()
 
     print("test_run_docker_prod_check_protocol passed.")
     return 0
