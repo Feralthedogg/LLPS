@@ -1,0 +1,33 @@
+.DS_Store
+
+# CMake and build outputs
+/build/
+/build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/compile_commands.json
+
+# Coverage and test outputs
+/coverage_report/
+/htmlcov/
+/coverage.info
+*.gcda
+*.gcno
+*.gcov
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+
+# Runtime logs and generated evidence
+*.log
+*.out
+/logs/*.pxf
+/logs/*.log
+/llps_debug.log
+/benchmark_out.txt
+
+# Local dependency checkouts are not needed for Docker release builds.
+/LLAM/

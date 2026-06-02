@@ -1,0 +1,109 @@
+# LLPS Configuration
+# Supported format: strictly "key: value" pairs.
+
+max_clients: 256
+buffer_size: 4096
+listen_host: 127.0.0.1
+listen_port: 25565
+target_host: 127.0.0.1
+target_port: 25566
+listen_backlog: 256
+accept_batch_max: 32
+session_idle_timeout_ms: 30000
+max_sessions_per_client_ip: 0
+max_new_sessions_per_client_ip_per_window: 0
+client_ip_rate_window_ms: 1000
+client_preface_timeout_ms: 0
+protocol_handshake_gate_enabled: 0
+payload_ecc_enabled: 1
+ip_audit_enabled: 1
+ip_audit_path: /tmp/llps-ip-audit.pxf
+audit_mac_enabled: 0
+audit_mac_key_path: /run/llps-secrets/llps-audit.key
+
+# Optional readiness startup gate.
+# 0 keeps normal LLPS startup behavior: unavailable Linux observations are
+# reported as unproven evidence, not as proof of an unsafe host.
+# 1 requires software TMR health plus platform evidence. In this mode,
+# unavailable requested evidence fails closed.
+# Bits 0 and 1 are verified from Linux EDAC counters and DIMM ECC mode
+# when available; the report separately seals controller-counter, DIMM-mode,
+# DIMM-counter, and scrub-rate coverage so incomplete EDAC observations fail
+# closed instead of being hidden by aggregate zero counters.
+# Bits 2 and 3 remain operator-supplied external evidence:
+# bit 0 ECC memory, bit 1 clean ECC counters, bit 2 physical separation,
+# bit 3 independent hardware TMR. Full readiness mode uses mask 15.
+# The hardware-TMR bit binds audited domain IDs into the evidence digest; LLPS
+# does not prove DRAM channel, memory controller, CPU package, or voter
+# independence by itself.
+# When bit 2 is enabled, phys_mem_domain0..2 must also match online Linux
+# NUMA nodes under /sys/devices/system/node. On Linux with mbind/move_pages,
+# TMR bank pages are also bound to and verified against those node IDs.
+# NUMA topology evidence reports node memory and distance coverage.
+# platform_evidence_mode: real uses only real Linux observations.
+# hybrid uses software evidence only for explicitly enabled software_ecc/numa
+# inputs; synthetic refuses real EDAC/NUMA fallback for requested evidence.
+# For container/lab environments without physical ECC or NUMA devices,
+# software_ecc_enabled and software_numa_enabled can supply deterministic
+# synthetic evidence from this file after a software DIMM self-test covers
+# SECDED repair, double-bit fail-closed detection, TMR repair, TMR fail-closed,
+# scrub validation, configured virtual-DIMM sweep coverage, and synthetic NUMA
+# topology coverage. This is useful for exercising the full software readiness
+# path. In pure synthetic mode, missing DMI product-UUID evidence is replaced by
+# a deterministic synthetic platform identity bound to the configured evidence
+# ID, software ECC/NUMA settings, physical-domain IDs, hardware-TMR domain IDs,
+# and voter ID. Real and hybrid modes still require real host identity evidence.
+# This is not hardware proof or remote attestation.
+# Domain triplets for disabled external evidence bits must stay all zero.
+# When bit 3 is enabled, hw_tmr_voter_domain must name a fourth independent
+# voter fault-containment domain that differs from hw_tmr_domain0..2.
+# When bits 2 and 3 are both enabled, phys_mem_domain0..2, hw_tmr_domain0..2,
+# and hw_tmr_voter_domain are treated as one fault-containment namespace and
+# all seven IDs must differ.
+# Full readiness also binds evidence to the current boot, host, and binary.
+# Readiness additionally requires TMR metadata pages to be resident; Linux
+# builds report this via mincore-derived resident-page counters/fingerprint.
+# TMR metadata page frames must be distinct, and every bank pair (0-1, 0-2,
+# 1-2) must meet the runtime-derived page-frame distance minimum from
+# LLPS_SESSION_TMR_MIN_DISTANCE_BYTES.
+# TMR NUMA page-placement evidence also reports placement page count,
+# mismatch count, probe failure count, and 12-region coverage.
+# Runtime safety monitor failures are sealed and split by failed safety layer:
+# config, software TMR, ECC, physical domains, placement, identity, digest.
+# In production server mode, sysfs/proc platform evidence polling runs through
+# LLAM's blocking-offload path so the cooperative scheduler only consumes results.
+# LLPS_EXPECT contract violations are also CRC-sealed and fail readiness.
+# audit_mac_enabled adds a per-record HMAC-SHA-256 row to PXF audit logs.
+# Keep audit and evidence MAC keys outside images/artifacts and rotate logs
+# when changing keys.
+# evidence_mac_enabled adds HMAC-SHA-256 authentication for readiness evidence.
+# Keep the key file outside the LLPS process image and deployment artifact.
+# Diagnostic commands: --print-platform-attestation-fingerprint, --print-readiness-report.
+require_readiness: 0
+platform_safety_flags: 7
+platform_safety_evidence_id: 42424242
+platform_attestation_fingerprint: 1519046679
+platform_observation_digest: 0
+platform_evidence_mode: synthetic
+phys_mem_domain0: 11
+phys_mem_domain1: 22
+phys_mem_domain2: 33
+hw_tmr_domain0: 0
+hw_tmr_domain1: 0
+hw_tmr_domain2: 0
+hw_tmr_voter_domain: 0
+software_ecc_enabled: 1
+software_ecc_controller_count: 1
+software_ecc_dimm_count: 8
+software_ecc_scrub_rate: 4096
+software_ecc_controller_corrected_error_count: 0
+software_ecc_controller_uncorrected_error_count: 0
+software_ecc_dimm_corrected_error_count: 0
+software_ecc_dimm_uncorrected_error_count: 0
+software_numa_enabled: 1
+software_numa_memtotal_kib: 1048576
+software_numa_local_distance: 10
+software_numa_remote_distance: 20
+software_fault_injection_mode: full
+evidence_mac_enabled: 0
+evidence_mac_key_path: /run/llps-secrets/llps-evidence.key
