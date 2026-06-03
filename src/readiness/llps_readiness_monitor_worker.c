@@ -327,7 +327,7 @@ static void llps_readiness_runtime_monitor_worker_init_job(
 
 static void llps_readiness_runtime_monitor_worker_note_bad_result(
     llps_readiness_runtime_monitor_blocking_job_t * const job,
-    void * const result) {
+    const void * const result) {
     if (job == NULL) {
         return;
     }

@@ -1018,9 +1018,7 @@ bool llps_runtime_cfg_tmr_startup_self_test(
                                                       coverage);
     }
 
-    if (canonical_cfg != NULL) {
-        *canonical_cfg = saved_cfg;
-    }
+    *canonical_cfg = saved_cfg;
     if (saved_banks_valid) {
         llps_runtime_cfg_restore_banks(saved_banks);
     }

@@ -3287,7 +3287,7 @@ static const char *llps_client_preface_read_chunk(
 }
 
 static const char *llps_client_preface_check_gate(
-    llps_session_t * const sess,
+    const llps_session_t * const sess,
     const size_t len,
     const bool protocol_gate_enabled,
     bool * const out_complete) {
@@ -4085,7 +4085,7 @@ static void llps_task_watchdog(void *arg) {
     }
 }
 
-static void llps_connection_record_backend_fail(llps_session_t * const sess,
+static void llps_connection_record_backend_fail(const llps_session_t * const sess,
                                                 const uint32_t session_id,
                                                 const char * const reason) {
     (void)llps_record_ip_audit_event(LLPS_IP_AUDIT_BACKEND_FAIL,
@@ -4265,7 +4265,7 @@ static bool llps_connection_prepare_pump_group(
 
 static bool llps_connection_spawn_pump_pair(llps_session_t * const sess,
                                             llam_task_group_t * const group,
-                                            llam_spawn_opts_t * const opts) {
+                                            const llam_spawn_opts_t * const opts) {
     if (llps_llam_task_group_spawn_checked(group,
                                            llps_task_pump,
                                            &sess->pump_c2s,

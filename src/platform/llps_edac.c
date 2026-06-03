@@ -1072,15 +1072,13 @@ static void llps_edac_scan_controller(
 static void llps_edac_scan_root(const char * const root,
                                 DIR * const dir,
                                 llps_edac_probe_state_t * const state) {
-    const struct dirent *entry = NULL;
-
     if ((root == NULL) || (dir == NULL) || (state == NULL)) {
         return;
     }
     for (uint32_t controller_scan = 0u;
          controller_scan < UINT32_MAX;
          ++controller_scan) {
-        entry = readdir(dir);
+        const struct dirent * const entry = readdir(dir);
         if (entry == NULL) {
             break;
         }

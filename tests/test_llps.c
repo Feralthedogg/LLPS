@@ -133,6 +133,7 @@ int __wrap_shutdown(int fd, int how);
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -229,6 +230,58 @@ static char test_complete_boot_id_path[128];
 static char test_complete_platform_id_path[128];
 static char test_complete_executable_image_path[128];
 static char test_complete_numa_root[128];
+
+#define LLPS_TEST_PATH_SLOT_COUNT (256u)
+#define LLPS_TEST_PATH_SLOT_CAP   (256u)
+
+static char test_path_slots[5u][LLPS_TEST_PATH_SLOT_COUNT][LLPS_TEST_PATH_SLOT_CAP];
+static size_t test_path_slot_next[5u];
+
+static const char *test_copy_path_slot(const size_t bank,
+                                       const char * const path) {
+    char *slot = NULL;
+    int n = 0;
+
+    if (path == NULL) {
+        return NULL;
+    }
+    LLPS_TEST_ASSERT(bank < 5u);
+
+    slot = test_path_slots[bank][test_path_slot_next[bank]];
+    test_path_slot_next[bank] =
+        (test_path_slot_next[bank] + 1u) % LLPS_TEST_PATH_SLOT_COUNT;
+    n = snprintf(slot, LLPS_TEST_PATH_SLOT_CAP, "%s", path);
+    LLPS_TEST_ASSERT(n >= 0);
+    LLPS_TEST_ASSERT((size_t)n < LLPS_TEST_PATH_SLOT_CAP);
+    return slot;
+}
+
+static void test_set_path_override(const size_t bank,
+                                   const char ** const global_path,
+                                   const char * const path) {
+    LLPS_TEST_ASSERT(global_path != NULL);
+    *global_path = test_copy_path_slot(bank, path);
+}
+
+static void test_set_edac_sysfs_root(const char * const path) {
+    test_set_path_override(0u, &g_edac_sysfs_root, path);
+}
+
+static void test_set_boot_id_path(const char * const path) {
+    test_set_path_override(1u, &g_boot_id_path, path);
+}
+
+static void test_set_platform_id_path(const char * const path) {
+    test_set_path_override(2u, &g_platform_id_path, path);
+}
+
+static void test_set_executable_image_path(const char * const path) {
+    test_set_path_override(3u, &g_executable_image_path, path);
+}
+
+static void test_set_numa_sysfs_root(const char * const path) {
+    test_set_path_override(4u, &g_numa_sysfs_root, path);
+}
 
 static void test_prepare_boot_id_file(char *path,
                                       size_t path_cap,
@@ -548,11 +601,11 @@ static void test_prepare_complete_platform_observation_roots(void) {
                            sizeof(test_complete_edac_root),
                            "0\n",
                            "0\n");
-    g_edac_sysfs_root = test_complete_edac_root;
+    test_set_edac_sysfs_root(test_complete_edac_root);
     test_prepare_numa_tree(test_complete_numa_root,
                            sizeof(test_complete_numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = test_complete_numa_root;
+    test_set_numa_sysfs_root(test_complete_numa_root);
 }
 
 static llps_status_t test_make_complete_platform_evidence(
@@ -562,15 +615,15 @@ static llps_status_t test_make_complete_platform_evidence(
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     test_prepare_platform_id_file(test_complete_platform_id_path,
                                   sizeof(test_complete_platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = test_complete_platform_id_path;
+    test_set_platform_id_path(test_complete_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
     return llps_make_platform_safety_evidence_raw(
         LLPS_PLATFORM_EVIDENCE_REQUIRED,
         LLPS_PLATFORM_EVIDENCE_ECC_MEMORY | LLPS_PLATFORM_EVIDENCE_ECC_CLEAN,
@@ -597,15 +650,15 @@ static llps_yml_config_t test_required_readiness_config_with_current_observation
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     test_prepare_platform_id_file(test_complete_platform_id_path,
                                   sizeof(test_complete_platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = test_complete_platform_id_path;
+    test_set_platform_id_path(test_complete_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
     collect_status = llps_collect_platform_safety_evidence(
@@ -647,15 +700,15 @@ test_required_software_readiness_config_with_current_observation(void) {
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     test_prepare_platform_id_file(test_complete_platform_id_path,
                                   sizeof(test_complete_platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = test_complete_platform_id_path;
+    test_set_platform_id_path(test_complete_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
     collect_status = llps_collect_platform_safety_evidence(
@@ -738,11 +791,11 @@ static void reset_mocks(void) {
     (void)memset(&mock_getaddrinfo_result, 0, sizeof(mock_getaddrinfo_result));
     g_backend_addr_valid = false;
     (void)memset(&g_backend_addr, 0, sizeof(g_backend_addr));
-    g_edac_sysfs_root = LLPS_EDAC_SYSFS_ROOT;
-    g_boot_id_path = LLPS_BOOT_ID_PATH;
-    g_platform_id_path = LLPS_PLATFORM_ID_PATH;
-    g_executable_image_path = NULL;
-    g_numa_sysfs_root = LLPS_NUMA_SYSFS_ROOT;
+    test_set_edac_sysfs_root(LLPS_EDAC_SYSFS_ROOT);
+    test_set_boot_id_path(LLPS_BOOT_ID_PATH);
+    test_set_platform_id_path(LLPS_PLATFORM_ID_PATH);
+    test_set_executable_image_path(NULL);
+    test_set_numa_sysfs_root(LLPS_NUMA_SYSFS_ROOT);
     llps_process_memory_locked_set(false);
     llps_tmr_memory_locked_set(false);
     llps_tmr_memory_prefaulted_set(false);
@@ -1296,9 +1349,11 @@ static void test_build_numa_distance_text(
     }
 
     for (uint32_t column = 0u; column <= max_domain; ++column) {
+        char fragment[32];
         uint32_t value = 99u;
         bool is_configured_column = false;
         int n = 0;
+        size_t fragment_len = 0u;
 
         for (size_t domain_index = 0u;
              domain_index < LLPS_SESSION_TMR_BANK_COUNT;
@@ -1316,14 +1371,18 @@ static void test_build_numa_distance_text(
             value = 99u;
         }
 
-        n = snprintf(&out_text[used],
-                     out_text_cap - used,
+        n = snprintf(fragment,
+                     sizeof(fragment),
                      "%u%s",
                      (unsigned)value,
                      (column == max_domain) ? "\n" : " ");
         LLPS_TEST_ASSERT(n > 0);
-        LLPS_TEST_ASSERT((size_t)n < (out_text_cap - used));
-        used += (size_t)n;
+        LLPS_TEST_ASSERT((size_t)n < sizeof(fragment));
+        fragment_len = (size_t)n;
+        LLPS_TEST_ASSERT(used < out_text_cap);
+        LLPS_TEST_ASSERT(fragment_len < (out_text_cap - used));
+        (void)memcpy(&out_text[used], fragment, fragment_len + 1u);
+        used += fragment_len;
     }
 }
 
@@ -2242,6 +2301,8 @@ static void test_llps_ip_audit_writes_pxf_record_shape(void) {
     char path[128];
     char line[4096];
     struct stat st;
+    int verify_fd = -1;
+    FILE *verify_fp = NULL;
     int n = 0;
 
     n = snprintf(path,
@@ -2280,7 +2341,18 @@ static void test_llps_ip_audit_writes_pxf_record_shape(void) {
     llps_ip_audit_shutdown();
 
     test_read_text_file(path, line, sizeof(line));
-    LLPS_TEST_ASSERT(stat(path, &st) == 0);
+    verify_fd = open(path,
+                     O_RDONLY
+#ifdef O_NOFOLLOW
+                     | O_NOFOLLOW
+#endif
+                     );
+    LLPS_TEST_ASSERT(verify_fd >= 0);
+    LLPS_TEST_ASSERT(fstat(verify_fd, &st) == 0);
+    verify_fp = fdopen(verify_fd, "r");
+    LLPS_TEST_ASSERT(verify_fp != NULL);
+    verify_fd = -1;
+    LLPS_TEST_ASSERT(fclose(verify_fp) == 0);
     LLPS_TEST_ASSERT((st.st_mode & S_IRUSR) != 0u);
     LLPS_TEST_ASSERT((st.st_mode & S_IRGRP) != 0u);
     LLPS_TEST_ASSERT((st.st_mode & S_IROTH) != 0u);
@@ -6748,15 +6820,15 @@ static void test_llps_software_platform_evidence_uses_configured_ecc_and_numa(vo
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     test_prepare_platform_id_file(test_complete_platform_id_path,
                                   sizeof(test_complete_platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = test_complete_platform_id_path;
+    test_set_platform_id_path(test_complete_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -6933,15 +7005,15 @@ static void test_llps_software_platform_evidence_rejects_dirty_ecc_counter(void)
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     test_prepare_platform_id_file(test_complete_platform_id_path,
                                   sizeof(test_complete_platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = test_complete_platform_id_path;
+    test_set_platform_id_path(test_complete_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -7003,15 +7075,15 @@ static void test_llps_software_platform_evidence_rejects_stale_profile(void) {
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     test_prepare_platform_id_file(test_complete_platform_id_path,
                                   sizeof(test_complete_platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = test_complete_platform_id_path;
+    test_set_platform_id_path(test_complete_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -7299,13 +7371,13 @@ static void test_llps_synthetic_platform_identity_replaces_missing_dmi(void) {
     test_prepare_boot_id_file(test_complete_boot_id_path,
                               sizeof(test_complete_boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = test_complete_boot_id_path;
+    test_set_boot_id_path(test_complete_boot_id_path);
     (void)remove(missing_platform_id_path);
-    g_platform_id_path = missing_platform_id_path;
+    test_set_platform_id_path(missing_platform_id_path);
     test_prepare_executable_image_file(test_complete_executable_image_path,
                                        sizeof(test_complete_executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = test_complete_executable_image_path;
+    test_set_executable_image_path(test_complete_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -7594,7 +7666,7 @@ static void test_llps_readiness_gate_rejects_stale_boot_evidence(void) {
     test_prepare_boot_id_file(stale_boot_id_path,
                               sizeof(stale_boot_id_path),
                               "99999999-8888-7777-6666-555555555555\n");
-    g_boot_id_path = stale_boot_id_path;
+    test_set_boot_id_path(stale_boot_id_path);
 
     LLPS_TEST_ASSERT(llps_get_readiness_report(&evidence, &report) ==
                      LLPS_OK);
@@ -7606,7 +7678,7 @@ static void test_llps_readiness_gate_rejects_stale_boot_evidence(void) {
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_EVIDENCE_VALID) != 0u);
 
-    g_boot_id_path = saved_boot_id_path;
+    test_set_boot_id_path(saved_boot_id_path);
     test_remove_boot_id_file(stale_boot_id_path);
 
     printf("test_llps_readiness_gate_rejects_stale_boot_evidence passed.\n");
@@ -7630,7 +7702,7 @@ static void test_llps_readiness_gate_rejects_stale_platform_identity_evidence(vo
     test_prepare_platform_id_file(stale_platform_id_path,
                                   sizeof(stale_platform_id_path),
                                   "ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb\n");
-    g_platform_id_path = stale_platform_id_path;
+    test_set_platform_id_path(stale_platform_id_path);
 
     LLPS_TEST_ASSERT(llps_get_readiness_report(&evidence, &report) ==
                      LLPS_OK);
@@ -7642,7 +7714,7 @@ static void test_llps_readiness_gate_rejects_stale_platform_identity_evidence(vo
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_EVIDENCE_VALID) != 0u);
 
-    g_platform_id_path = saved_platform_id_path;
+    test_set_platform_id_path(saved_platform_id_path);
     test_remove_platform_id_file(stale_platform_id_path);
 
     printf("test_llps_readiness_gate_rejects_stale_platform_identity_evidence passed.\n");
@@ -7666,7 +7738,7 @@ static void test_llps_readiness_gate_rejects_stale_executable_image_evidence(voi
     test_prepare_executable_image_file(stale_executable_image_path,
                                        sizeof(stale_executable_image_path),
                                        "llps-test-image-v2\n");
-    g_executable_image_path = stale_executable_image_path;
+    test_set_executable_image_path(stale_executable_image_path);
 
     LLPS_TEST_ASSERT(llps_get_readiness_report(&evidence, &report) ==
                      LLPS_OK);
@@ -7678,7 +7750,7 @@ static void test_llps_readiness_gate_rejects_stale_executable_image_evidence(voi
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_EVIDENCE_VALID) != 0u);
 
-    g_executable_image_path = saved_executable_image_path;
+    test_set_executable_image_path(saved_executable_image_path);
     test_remove_executable_image_file(stale_executable_image_path);
 
     printf("test_llps_readiness_gate_rejects_stale_executable_image_evidence passed.\n");
@@ -8674,7 +8746,7 @@ static void test_llps_public_evidence_builder_rejects_manual_ecc_claims(void) {
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_make_platform_safety_evidence_ex(
                          LLPS_PLATFORM_EVIDENCE_REQUIRED,
@@ -8732,7 +8804,7 @@ static void test_llps_public_evidence_builder_rejects_manual_ecc_claims(void) {
                          test_hardware_tmr_voter_domain,
                          &evidence) == LLPS_E_RANGE);
 
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
     printf("test_llps_public_evidence_builder_rejects_manual_ecc_claims passed.\n");
@@ -9155,11 +9227,11 @@ static void test_llps_init_enforces_required_readiness_with_clean_edac(void) {
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
@@ -9172,8 +9244,8 @@ static void test_llps_init_enforces_required_readiness_with_clean_edac(void) {
                          test_physical_memory_domains[i]);
     }
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9189,19 +9261,19 @@ static void test_llps_init_rejects_required_readiness_without_ecc_evidence(void)
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
-    g_edac_sysfs_root = "/tmp/llps_missing_edac_root_for_required_init";
+    test_set_edac_sysfs_root("/tmp/llps_missing_edac_root_for_required_init");
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_E_STATE);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9217,11 +9289,11 @@ static void test_llps_init_rejects_required_readiness_without_tmr_memory_domain_
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     g_tmr_memory_domain_probe_override_domains[1] =
@@ -9229,8 +9301,8 @@ static void test_llps_init_rejects_required_readiness_without_tmr_memory_domain_
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_E_STATE);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9248,11 +9320,11 @@ static void test_llps_memory_report_refreshes_tmr_memory_domain_binding_fault(vo
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
@@ -9286,8 +9358,8 @@ static void test_llps_memory_report_refreshes_tmr_memory_domain_binding_fault(vo
     LLPS_TEST_ASSERT(report.tmr_memory_observed_domain_ids[2] ==
                      test_physical_memory_domains[2]);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9303,17 +9375,17 @@ static void test_llps_init_for_diagnostics_reports_missing_ecc_without_gate_fail
     const char *saved_numa_root = g_numa_sysfs_root;
 
     reset_mocks();
-    g_edac_sysfs_root = "/tmp/llps_missing_edac_root_for_diag_init";
+    test_set_edac_sysfs_root("/tmp/llps_missing_edac_root_for_diag_init");
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_E_STATE);
 
     reset_mocks();
-    g_edac_sysfs_root = "/tmp/llps_missing_edac_root_for_diag_init";
-    g_numa_sysfs_root = numa_root;
+    test_set_edac_sysfs_root("/tmp/llps_missing_edac_root_for_diag_init");
+    test_set_numa_sysfs_root(numa_root);
     test_enable_tmr_memory_domain_override(test_physical_memory_domains);
 
     LLPS_TEST_ASSERT(llps_init_for_diagnostics(&cfg) == LLPS_OK);
@@ -9335,8 +9407,8 @@ static void test_llps_init_for_diagnostics_reports_missing_ecc_without_gate_fail
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_CLEAN) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
     printf("test_llps_init_for_diagnostics_reports_missing_ecc_without_gate_failure passed.\n");
@@ -9362,19 +9434,19 @@ static void test_llps_init_rejects_required_readiness_with_stale_observation_dig
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
     LLPS_TEST_ASSERT(cfg.platform_observation_digest != 0u);
     cfg.platform_observation_digest ^= 0x1u;
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_E_STATE);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9398,23 +9470,23 @@ static void test_llps_collect_platform_evidence_from_clean_edac(void) {
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_boot_id_file(boot_id_path,
                               sizeof(boot_id_path),
                               "11111111-2222-3333-4444-555555555555\n");
-    g_boot_id_path = boot_id_path;
+    test_set_boot_id_path(boot_id_path);
     test_prepare_platform_id_file(platform_id_path,
                                   sizeof(platform_id_path),
                                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
-    g_platform_id_path = platform_id_path;
+    test_set_platform_id_path(platform_id_path);
     test_prepare_executable_image_file(executable_image_path,
                                        sizeof(executable_image_path),
                                        "llps-test-image-v1\n");
-    g_executable_image_path = executable_image_path;
+    test_set_executable_image_path(executable_image_path);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9523,11 +9595,11 @@ static void test_llps_collect_platform_evidence_from_clean_edac(void) {
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_RUNTIME_MONITOR) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_boot_id_path = saved_boot_id_path;
-    g_platform_id_path = saved_platform_id_path;
-    g_executable_image_path = saved_executable_image_path;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_boot_id_path(saved_boot_id_path);
+    test_set_platform_id_path(saved_platform_id_path);
+    test_set_executable_image_path(saved_executable_image_path);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_boot_id_file(boot_id_path);
     test_remove_platform_id_file(platform_id_path);
@@ -9548,11 +9620,11 @@ static void test_llps_collect_platform_evidence_rejects_dirty_edac(void) {
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "1\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9622,8 +9694,8 @@ static void test_llps_collect_platform_evidence_rejects_dirty_edac(void) {
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_CLEAN) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9642,11 +9714,11 @@ static void test_llps_collect_platform_evidence_rejects_dirty_dimm_edac(void) {
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
     test_write_edac_dimm_counter(edac_root, "dimm0", "dimm_ce_count", "1\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9685,8 +9757,8 @@ static void test_llps_collect_platform_evidence_rejects_dirty_dimm_edac(void) {
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_CLEAN) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9705,11 +9777,11 @@ static void test_llps_collect_platform_evidence_rejects_missing_dimm_counter(voi
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
     test_remove_edac_dimm_counter(edac_root, "dimm0", "dimm_ue_count");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9745,8 +9817,8 @@ static void test_llps_collect_platform_evidence_rejects_missing_dimm_counter(voi
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_CLEAN) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9765,11 +9837,11 @@ static void test_llps_collect_platform_evidence_rejects_missing_controller_count
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
     test_remove_edac_controller_counter(edac_root, "ue_count");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9804,8 +9876,8 @@ static void test_llps_collect_platform_evidence_rejects_missing_controller_count
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_CLEAN) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9824,11 +9896,11 @@ static void test_llps_collect_platform_evidence_rejects_missing_edac_scrub_rate(
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
     test_remove_edac_controller_counter(edac_root, "sdram_scrub_rate");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9864,8 +9936,8 @@ static void test_llps_collect_platform_evidence_rejects_missing_edac_scrub_rate(
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_CLEAN) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9887,11 +9959,11 @@ static void test_llps_collect_platform_evidence_rejects_none_ecc_mode(void) {
                                      "0\n",
                                      "0\n",
                                      "None\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -9951,8 +10023,8 @@ static void test_llps_collect_platform_evidence_rejects_none_ecc_mode(void) {
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_MEMORY) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -9974,11 +10046,11 @@ static void test_llps_collect_platform_evidence_rejects_unrecognized_ecc_mode(vo
                                      "0\n",
                                      "0\n",
                                      "Parity\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -10014,8 +10086,8 @@ static void test_llps_collect_platform_evidence_rejects_unrecognized_ecc_mode(vo
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_MEMORY) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10043,11 +10115,11 @@ static void test_llps_collect_platform_evidence_rejects_negated_ecc_modes(void) 
                                          "0\n",
                                          "0\n",
                                          mode_texts[i]);
-        g_edac_sysfs_root = edac_root;
+        test_set_edac_sysfs_root(edac_root);
         test_prepare_numa_tree(numa_root,
                                sizeof(numa_root),
                                test_physical_memory_domains);
-        g_numa_sysfs_root = numa_root;
+        test_set_numa_sysfs_root(numa_root);
 
         LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
         LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -10105,11 +10177,11 @@ static void test_llps_collect_platform_evidence_rejects_missing_ecc_mode(void) {
                                      "0\n",
                                      "0\n",
                                      NULL);
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -10145,8 +10217,8 @@ static void test_llps_collect_platform_evidence_rejects_missing_ecc_mode(void) {
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_MEMORY) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10165,11 +10237,11 @@ static void test_llps_collect_platform_evidence_rejects_partial_missing_ecc_mode
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
     test_add_edac_dimm_mode(edac_root, "dimm1", NULL);
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
     LLPS_TEST_ASSERT(llps_collect_platform_safety_evidence(
@@ -10206,8 +10278,8 @@ static void test_llps_collect_platform_evidence_rejects_partial_missing_ecc_mode
     LLPS_TEST_ASSERT((report.missing_requirements &
                       LLPS_READINESS_MISSING_ECC_MEMORY) != 0u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10227,11 +10299,11 @@ static void test_llps_watchdog_fails_closed_on_runtime_dirty_edac(void) {
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
@@ -10253,8 +10325,8 @@ static void test_llps_watchdog_fails_closed_on_runtime_dirty_edac(void) {
     LLPS_TEST_ASSERT(g_memory_safety_counters.readiness_runtime_monitor_failures >= 1u);
     LLPS_TEST_ASSERT(g_memory_safety_counters.readiness_runtime_ecc_failures >= 1u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10272,11 +10344,11 @@ static void test_llps_watchdog_fails_closed_on_runtime_tmr_memory_domain_fault(v
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
@@ -10297,8 +10369,8 @@ static void test_llps_watchdog_fails_closed_on_runtime_tmr_memory_domain_fault(v
     LLPS_TEST_ASSERT(
         g_memory_safety_counters.readiness_runtime_tmr_memory_domain_failures >= 1u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10316,11 +10388,11 @@ static void test_llps_watchdog_fails_closed_on_runtime_nonresident_tmr_memory(vo
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
@@ -10342,8 +10414,8 @@ static void test_llps_watchdog_fails_closed_on_runtime_nonresident_tmr_memory(vo
         g_memory_safety_counters.readiness_runtime_software_tmr_failures >= 1u);
     LLPS_TEST_ASSERT(g_memory_safety_counters.tmr_memory_residency_failures >= 1u);
 
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10361,11 +10433,11 @@ static void test_llps_watchdog_fails_closed_on_runtime_tmr_physical_frame_alias(
 
     reset_mocks();
     test_prepare_edac_tree(edac_root, sizeof(edac_root), "0\n", "0\n");
-    g_edac_sysfs_root = edac_root;
+    test_set_edac_sysfs_root(edac_root);
     test_prepare_numa_tree(numa_root,
                            sizeof(numa_root),
                            test_physical_memory_domains);
-    g_numa_sysfs_root = numa_root;
+    test_set_numa_sysfs_root(numa_root);
     cfg = test_required_readiness_config_with_current_observation();
 
     LLPS_TEST_ASSERT(llps_init(&cfg) == LLPS_OK);
@@ -10387,8 +10459,8 @@ static void test_llps_watchdog_fails_closed_on_runtime_tmr_physical_frame_alias(
     LLPS_TEST_ASSERT(g_memory_safety_counters.tmr_memory_physical_frame_faults >= 1u);
 
     g_tmr_physical_frame_probe_override_alias = false;
-    g_edac_sysfs_root = saved_edac_root;
-    g_numa_sysfs_root = saved_numa_root;
+    test_set_edac_sysfs_root(saved_edac_root);
+    test_set_numa_sysfs_root(saved_numa_root);
     test_remove_edac_tree(edac_root);
     test_remove_numa_tree(numa_root, test_physical_memory_domains);
 
@@ -10418,7 +10490,7 @@ static void test_llps_watchdog_fails_closed_on_runtime_stale_boot_binding(void) 
     test_prepare_boot_id_file(stale_boot_id_path,
                               sizeof(stale_boot_id_path),
                               "99999999-8888-7777-6666-555555555555\n");
-    g_boot_id_path = stale_boot_id_path;
+    test_set_boot_id_path(stale_boot_id_path);
 
     llps_task_watchdog(NULL);
 
@@ -10428,7 +10500,7 @@ static void test_llps_watchdog_fails_closed_on_runtime_stale_boot_binding(void) 
     LLPS_TEST_ASSERT(
         g_memory_safety_counters.readiness_runtime_observation_digest_failures >= 1u);
 
-    g_boot_id_path = saved_boot_id_path;
+    test_set_boot_id_path(saved_boot_id_path);
     test_remove_boot_id_file(stale_boot_id_path);
 
     printf("test_llps_watchdog_fails_closed_on_runtime_stale_boot_binding passed.\n");
@@ -10457,7 +10529,7 @@ static void test_llps_watchdog_fails_closed_on_runtime_stale_platform_identity(v
     test_prepare_platform_id_file(stale_platform_id_path,
                                   sizeof(stale_platform_id_path),
                                   "ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb\n");
-    g_platform_id_path = stale_platform_id_path;
+    test_set_platform_id_path(stale_platform_id_path);
 
     llps_task_watchdog(NULL);
 
@@ -10467,7 +10539,7 @@ static void test_llps_watchdog_fails_closed_on_runtime_stale_platform_identity(v
     LLPS_TEST_ASSERT(
         g_memory_safety_counters.readiness_runtime_observation_digest_failures >= 1u);
 
-    g_platform_id_path = saved_platform_id_path;
+    test_set_platform_id_path(saved_platform_id_path);
     test_remove_platform_id_file(stale_platform_id_path);
 
     printf("test_llps_watchdog_fails_closed_on_runtime_stale_platform_identity passed.\n");
@@ -10496,7 +10568,7 @@ static void test_llps_watchdog_fails_closed_on_runtime_stale_executable_image(vo
     test_prepare_executable_image_file(stale_executable_image_path,
                                        sizeof(stale_executable_image_path),
                                        "llps-test-image-v2\n");
-    g_executable_image_path = stale_executable_image_path;
+    test_set_executable_image_path(stale_executable_image_path);
 
     llps_task_watchdog(NULL);
 
@@ -10506,7 +10578,7 @@ static void test_llps_watchdog_fails_closed_on_runtime_stale_executable_image(vo
     LLPS_TEST_ASSERT(
         g_memory_safety_counters.readiness_runtime_observation_digest_failures >= 1u);
 
-    g_executable_image_path = saved_executable_image_path;
+    test_set_executable_image_path(saved_executable_image_path);
     test_remove_executable_image_file(stale_executable_image_path);
 
     printf("test_llps_watchdog_fails_closed_on_runtime_stale_executable_image passed.\n");
